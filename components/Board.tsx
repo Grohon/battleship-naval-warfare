@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { BoardState, PlacedShip, UnplacedShip } from '../types';
-import { canPlaceShip } from '../services/gameLogic';
 import Cell from './Cell';
 import ShipComponent from './Ship';
 
@@ -12,22 +10,23 @@ interface BoardProps {
   isPlayerBoard: boolean;
   onCellClick?: (row: number, col: number) => void;
   onCellDragOver?: (e: React.DragEvent<HTMLDivElement>, row: number, col: number) => void;
+  onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void;
   onCellDrop?: (e: React.DragEvent<HTMLDivElement>, row: number, col: number) => void;
   onPlacedShipDragStart?: (e: React.DragEvent<HTMLDivElement>, ship: PlacedShip) => void;
   onPlacedShipDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
+  onPlacedShipTouchStart?: (e: React.TouchEvent<HTMLDivElement>, ship: PlacedShip) => void;
   onRotatePlacedShip?: (shipId: string) => void;
   disabled: boolean;
   isTurn: boolean;
   draggedShip?: UnplacedShip | null;
   sunkShipPositions?: {row: number, col: number}[];
+  previewCells?: {row: number, col: number}[];
+  isPlacementValid?: boolean;
 }
 
 const GAP_SIZE = 2; // Corresponds to gap-0.5 -> 0.125rem * 16px = 2px
 
-const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard, onCellClick, onCellDragOver, onCellDrop, onPlacedShipDragStart, onPlacedShipDragEnd, onRotatePlacedShip, disabled, isTurn, draggedShip, sunkShipPositions }) => {
-  const [previewCells, setPreviewCells] = useState<{row: number, col: number}[]>([]);
-  const [isPlacementValid, setIsPlacementValid] = useState<boolean>(false);
-
+const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard, onCellClick, onCellDragOver, onDragLeave, onCellDrop, onPlacedShipDragStart, onPlacedShipDragEnd, onPlacedShipTouchStart, onRotatePlacedShip, disabled, isTurn, draggedShip, sunkShipPositions, previewCells, isPlacementValid }) => {
   const boardClasses = `p-2 bg-navy-900/50 rounded-lg shadow-lg transition-all duration-500 ${isTurn ? 'ring-2 ring-cyan-light animate-pulse' : 'ring-0'} ${
     isPlayerBoard && draggedShip ? 'border-2 border-dashed border-cyan-light/50' : ''
   }`;
@@ -49,60 +48,31 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
       window.removeEventListener('resize', updateCellSize);
     };
   }, []);
-  
-  useEffect(() => {
-    // Clear preview when no ship is being dragged
-    if (!draggedShip) {
-      setPreviewCells([]);
-    }
-  }, [draggedShip]);
-
-  const handleInternalDragOver = (e: React.DragEvent<HTMLDivElement>, row: number, col: number) => {
-    if (onCellDragOver) onCellDragOver(e, row, col);
-    if (!draggedShip) return;
-
-    const positions = [];
-    if (draggedShip.orientation === 'horizontal') {
-        for (let i = 0; i < draggedShip.length; i++) {
-            positions.push({ row, col: col + i });
-        }
-    } else {
-        for (let i = 0; i < draggedShip.length; i++) {
-            positions.push({ row: row + i, col });
-        }
-    }
-    
-    const isValid = canPlaceShip(board, draggedShip, row, col, draggedShip.orientation);
-    setPreviewCells(positions);
-    setIsPlacementValid(isValid);
-  };
-
-  const handleDragLeave = () => {
-    setPreviewCells([]);
-  };
 
   return (
     <div className="flex flex-col items-center space-y-3">
       <h2 className="text-xl font-bold tracking-wider text-slate-light">{title}</h2>
       <div className={boardClasses}>
-        <div className="relative" onDragLeave={handleDragLeave}>
+        <div className="relative" onDragLeave={isPlayerBoard ? onDragLeave : undefined}>
           <div ref={gridRef} className="grid grid-cols-10 gap-0.5 bg-navy-700">
             {board.map((row, rowIndex) =>
               row.map((cell, colIndex) => {
-                const isPreviewing = previewCells.some(p => p.row === rowIndex && p.col === colIndex);
+                const isPreviewing = previewCells?.some(p => p.row === rowIndex && p.col === colIndex);
                 const isNewlySunk = sunkShipPositions?.some(p => p.row === rowIndex && p.col === colIndex);
 
                 return (
                   <Cell
                     key={`${rowIndex}-${colIndex}`}
                     state={cell}
+                    row={rowIndex}
+                    col={colIndex}
                     isPlayerBoard={isPlayerBoard}
                     onClick={() => onCellClick && onCellClick(rowIndex, colIndex)}
-                    onDragOver={(e) => isPlayerBoard && handleInternalDragOver(e, rowIndex, colIndex)}
+                    onDragOver={(e) => isPlayerBoard && onCellDragOver && onCellDragOver(e, rowIndex, colIndex)}
                     onDrop={(e) => onCellDrop && onCellDrop(e, rowIndex, colIndex)}
                     disabled={disabled}
                     isPlacementPreview={isPreviewing}
-                    isPlacementValid={isPlacementValid}
+                    isPlacementValid={isPlacementValid ?? false}
                     isNewlySunk={isNewlySunk}
                   />
                 );
@@ -124,6 +94,7 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
                   draggable={isInteractive}
                   onDragStart={isInteractive ? (e) => onPlacedShipDragStart && onPlacedShipDragStart(e, ship) : undefined}
                   onDragEnd={isInteractive ? onPlacedShipDragEnd : undefined}
+                  onTouchStart={isInteractive ? (e) => onPlacedShipTouchStart && onPlacedShipTouchStart(e, ship) : undefined}
                   onClick={() => {
                     if (isInteractive && onRotatePlacedShip) {
                       onRotatePlacedShip(ship.id);

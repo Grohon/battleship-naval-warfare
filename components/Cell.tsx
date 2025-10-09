@@ -1,9 +1,10 @@
-
 import React from 'react';
 import { CellState, CellStatus } from '../types';
 
 interface CellProps {
   state: CellState;
+  row: number;
+  col: number;
   isPlayerBoard: boolean;
   onClick: () => void;
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -14,7 +15,7 @@ interface CellProps {
   isNewlySunk?: boolean;
 }
 
-const Cell: React.FC<CellProps> = ({ state, isPlayerBoard, onClick, onDragOver, onDrop, disabled, isPlacementPreview, isPlacementValid, isNewlySunk }) => {
+const Cell: React.FC<CellProps> = ({ state, row, col, isPlayerBoard, onClick, onDragOver, onDrop, disabled, isPlacementPreview, isPlacementValid, isNewlySunk }) => {
   const getCellClasses = () => {
     let baseClasses = 'w-8 h-8 md:w-10 md:h-10 border border-navy-700 transition-all duration-300';
 
@@ -61,6 +62,8 @@ const Cell: React.FC<CellProps> = ({ state, isPlayerBoard, onClick, onDragOver, 
       onClick={!disabled ? onClick : undefined}
       onDragOver={onDragOver}
       onDrop={onDrop}
+      data-row={row}
+      data-col={col}
     />
   );
 };

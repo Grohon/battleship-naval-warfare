@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { UnplacedShip } from '../types';
 import ShipComponent from './Ship';
@@ -6,6 +5,7 @@ import ShipComponent from './Ship';
 interface ShipPlacementProps {
   ship: UnplacedShip;
   onDragStart: (e: React.DragEvent<HTMLDivElement>, ship: UnplacedShip) => void;
+  onTouchStart: (e: React.TouchEvent<HTMLDivElement>, ship: UnplacedShip) => void;
   onDragEnd: () => void;
   onRotate: (shipId: string) => void;
 }
@@ -15,7 +15,7 @@ const GAP_SIZE_SMALL = 2; // gap-0.5
 const CELL_SIZE_MEDIUM = 40; // md:w-10
 const GAP_SIZE_MEDIUM = 2; // md:gap-0.5
 
-const ShipPlacement: React.FC<ShipPlacementProps> = ({ ship, onDragStart, onDragEnd, onRotate }) => {
+const ShipPlacement: React.FC<ShipPlacementProps> = ({ ship, onDragStart, onTouchStart, onDragEnd, onRotate }) => {
 
   const getStyle = (isMediumScreen: boolean): React.CSSProperties => {
     const cellSize = isMediumScreen ? CELL_SIZE_MEDIUM : CELL_SIZE_SMALL;
@@ -30,6 +30,7 @@ const ShipPlacement: React.FC<ShipPlacementProps> = ({ ship, onDragStart, onDrag
     <div
       draggable
       onDragStart={(e) => onDragStart(e, ship)}
+      onTouchStart={(e) => onTouchStart(e, ship)}
       onDragEnd={onDragEnd}
       onClick={() => onRotate(ship.id)}
       onContextMenu={(e) => {
