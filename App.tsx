@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SHIPS } from './constants';
-import { BoardState, CellStatus, GamePhase, PlacedShip, Player, UnplacedShip, Orientation } from './types';
+import { BoardState, CellStatus, GamePhase, PlacedShip, Player, UnplacedShip, Orientation, GameStatsData } from './types';
 import { createEmptyBoard, placeAllComputerShips, canPlaceShip, placeShipOnBoard, getComputerMove, isShipSunk } from './services/gameLogic';
+import { loadStats, saveStats, resetStats } from './services/statsService';
 import Board from './components/Board';
 import GameStatus from './components/GameStatus';
 import ShipPlacement from './components/ShipPlacement';
 import FleetStatus from './components/FleetStatus';
+import GameStats from './components/GameStats';
 
 const App: React.FC = () => {
     const [phase, setPhase] = useState<GamePhase>(GamePhase.PLACEMENT);
@@ -20,6 +22,40 @@ const App: React.FC = () => {
     const [unplacedPlayerShips, setUnplacedPlayerShips] = useState<UnplacedShip[]>([]);
     const [draggedShip, setDraggedShip] = useState<UnplacedShip | null>(null);
     const [sunkShipInfo, setSunkShipInfo] = useState<{ player: Player; positions: {row: number, col: number}[] } | null>(null);
+    
+    // Stats state
+    const [stats, setStats] = useState<GameStatsData>(loadStats());
+    const [isStatsVisible, setIsStatsVisible] = useState(false);
+    const [playerShots, setPlayerShots] = useState<{ hits: number; total: number }>({ hits: 0, total: 0 });
+    const [gameStartTime, setGameStartTime] = useState<number | null>(null);
+
+    const handleGameOver = useCallback((gameWinner: Player) => {
+        setWinner(gameWinner);
+        setPhase(GamePhase.GAME_OVER);
+        
+        const newStats: GameStatsData = { ...stats };
+        newStats.gamesPlayed++;
+        newStats.totalShots += playerShots.total;
+        newStats.totalHits += playerShots.hits;
+
+        if (gameWinner === 'PLAYER') {
+            newStats.wins++;
+            setMessage('Congratulations, you have won!');
+            if (gameStartTime) {
+                const gameDuration = Date.now() - gameStartTime;
+                if (newStats.fastestWinTime === null || gameDuration < newStats.fastestWinTime) {
+                    newStats.fastestWinTime = gameDuration;
+                }
+            }
+        } else {
+            newStats.losses++;
+            setMessage('The computer has won. Better luck next time.');
+        }
+
+        saveStats(newStats);
+        setStats(newStats);
+
+    }, [stats, playerShots, gameStartTime]);
 
     const setupNewGame = useCallback(() => {
         setPhase(GamePhase.PLACEMENT);
@@ -34,6 +70,8 @@ const App: React.FC = () => {
         setMessage('Place your ships. Tap or right-click a ship to rotate it.');
         setComputerActiveHits([]);
         setSunkShipInfo(null);
+        setPlayerShots({ hits: 0, total: 0 });
+        setGameStartTime(null);
     }, []);
 
     useEffect(() => {
@@ -44,6 +82,7 @@ const App: React.FC = () => {
         if (unplacedPlayerShips.length > 0) return;
         setPhase(GamePhase.BATTLE);
         setMessage("Your turn! Fire at the enemy's grid.");
+        setGameStartTime(Date.now());
     };
 
     const handlePlayerAttack = (row: number, col: number) => {
@@ -51,6 +90,8 @@ const App: React.FC = () => {
 
         const cell = computerBoard[row][col];
         if (cell.status === CellStatus.HIT || cell.status === CellStatus.MISS || cell.status === CellStatus.SUNK) return;
+        
+        setPlayerShots(prev => ({ ...prev, total: prev.total + 1 }));
 
         const newBoard = computerBoard.map(r => r.map(c => ({ ...c })));
         let newComputerShips = computerShips.map(s => ({...s}));
@@ -58,6 +99,7 @@ const App: React.FC = () => {
         if (cell.shipId) {
             newBoard[row][col].status = CellStatus.HIT;
             setMessage('Direct hit!');
+            setPlayerShots(prev => ({ ...prev, hits: prev.hits + 1 }));
             
             const hitShip = newComputerShips.find(s => s.id === cell.shipId);
             if (hitShip && isShipSunk(newBoard, hitShip)) {
@@ -76,9 +118,7 @@ const App: React.FC = () => {
         setComputerShips(newComputerShips);
 
         if (newComputerShips.every(s => s.sunk)) {
-            setWinner('PLAYER');
-            setPhase(GamePhase.GAME_OVER);
-            setMessage('Congratulations, you have won!');
+            handleGameOver('PLAYER');
         } else {
             setTurn('COMPUTER');
         }
@@ -105,7 +145,6 @@ const App: React.FC = () => {
                         setSunkShipInfo({ player: 'PLAYER', positions: hitShip.positions });
                         setTimeout(() => setSunkShipInfo(null), 800);
                         
-                        // Clear hits related to the sunk ship from the AI's memory
                         setComputerActiveHits(prevHits => 
                             prevHits.filter(hit => 
                                 !hitShip.positions.some(p => p.row === hit.row && p.col === hit.col)
@@ -122,16 +161,14 @@ const App: React.FC = () => {
                 setPlayerShips(newPlayerShips);
                 
                 if (newPlayerShips.every(s => s.sunk)) {
-                    setWinner('COMPUTER');
-                    setPhase(GamePhase.GAME_OVER);
-                    setMessage('The computer has won. Better luck next time.');
+                    handleGameOver('COMPUTER');
                 } else {
                     setTurn('PLAYER');
                     setMessage('Your turn!');
                 }
             }, 1000);
         }
-    }, [turn, phase, winner, playerBoard, playerShips, computerActiveHits]);
+    }, [turn, phase, winner, playerBoard, playerShips, computerActiveHits, handleGameOver]);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, ship: UnplacedShip) => {
         e.dataTransfer.setData('shipId', ship.id);
@@ -213,12 +250,30 @@ const App: React.FC = () => {
             ));
         }
     };
+
+    const handleResetStats = () => {
+      const defaultStats = resetStats();
+      setStats(defaultStats);
+    };
     
     return (
         <div className="min-h-screen bg-gradient-to-b from-navy-900 to-navy-800 flex flex-col items-center p-4 md:p-8">
-            <header className="text-center mb-6">
+            {isStatsVisible && (
+              <GameStats stats={stats} onClose={() => setIsStatsVisible(false)} onReset={handleResetStats} />
+            )}
+
+            <header className="relative w-full text-center mb-6">
                 <h1 className="text-4xl md:text-5xl font-bold text-cyan-light tracking-widest">BATTLESHIP</h1>
                 <p className="text-slate-DEFAULT">Naval Warfare Edition</p>
+                <button
+                  onClick={() => setIsStatsVisible(true)}
+                  className="absolute top-0 right-0 p-2 text-slate-DEFAULT hover:text-cyan-light transition-colors"
+                  aria-label="Show game statistics"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                </button>
             </header>
 
             <GameStatus 

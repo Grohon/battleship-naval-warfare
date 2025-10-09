@@ -1,5 +1,5 @@
+
 import React from 'react';
-// FIX: Import the 'Ship' type to be used in the ShipStatusIcon component props.
 import { PlacedShip, Ship } from '../types';
 import { SHIPS } from '../constants';
 

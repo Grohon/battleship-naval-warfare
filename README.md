@@ -1,3 +1,4 @@
+
 # Battleship: Naval Warfare
 
 A modern and elegant 2D Battleship game where you play against a computer AI. Built with React, TypeScript, and Tailwind CSS, this project showcases a clean UI, smooth animations, and a challenging opponent.

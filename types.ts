@@ -38,3 +38,12 @@ export enum GamePhase {
 export type Player = 'PLAYER' | 'COMPUTER';
 
 export type Orientation = 'horizontal' | 'vertical';
+
+export interface GameStatsData {
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  totalShots: number;
+  totalHits: number;
+  fastestWinTime: number | null; // in milliseconds
+}

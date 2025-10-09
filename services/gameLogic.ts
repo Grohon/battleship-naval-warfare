@@ -1,3 +1,4 @@
+
 import { BOARD_SIZE, SHIPS } from '../constants';
 import { BoardState, CellState, CellStatus, PlacedShip, Ship, Orientation } from '../types';
 

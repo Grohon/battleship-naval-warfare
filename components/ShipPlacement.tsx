@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { UnplacedShip } from '../types';
 import ShipComponent from './Ship';

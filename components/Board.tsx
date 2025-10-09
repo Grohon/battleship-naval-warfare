@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { BoardState, PlacedShip, UnplacedShip } from '../types';
 import { canPlaceShip } from '../services/gameLogic';
