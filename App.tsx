@@ -146,22 +146,25 @@ const App: React.FC = () => {
         const newBoard = computerBoard.map(r => r.map(c => ({ ...c })));
         let newComputerShips = computerShips.map(s => ({...s}));
         
-        if (cell.shipId) {
+        const isHit = !!cell.shipId;
+
+        if (isHit) {
             newBoard[row][col].status = CellStatus.HIT;
-            setMessage('Direct hit!');
             setPlayerShots(prev => ({ ...prev, hits: prev.hits + 1 }));
             
             const hitShip = newComputerShips.find(s => s.id === cell.shipId);
             if (hitShip && isShipSunk(newBoard, hitShip)) {
                 hitShip.sunk = true;
-                setMessage(`You sunk their ${hitShip.name}!`);
+                setMessage(`You sunk their ${hitShip.name}! Shoot again.`);
                 setSunkShipInfo({ player: 'COMPUTER', positions: hitShip.positions });
                 setTimeout(() => setSunkShipInfo(null), 800);
                 hitShip.positions.forEach(p => newBoard[p.row][p.col].status = CellStatus.SUNK);
+            } else {
+                setMessage('Direct hit! Shoot again.');
             }
         } else {
             newBoard[row][col].status = CellStatus.MISS;
-            setMessage('You missed.');
+            setMessage('You missed. Computer is thinking...');
         }
 
         setComputerBoard(newBoard);
@@ -169,29 +172,30 @@ const App: React.FC = () => {
 
         if (newComputerShips.every(s => s.sunk)) {
             handleGameOver('PLAYER');
-        } else {
+        } else if (!isHit) {
+            // A hit keeps the turn with the player; only a miss passes it on.
             setTurn('COMPUTER');
         }
     };
     
     useEffect(() => {
         if (turn === 'COMPUTER' && phase === GamePhase.BATTLE && !winner) {
-            setMessage("Computer is thinking...");
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 const { row, col } = getComputerMove(playerBoard, computerActiveHits);
                 const newBoard = playerBoard.map(r => r.map(c => ({ ...c })));
                 let newPlayerShips = playerShips.map(s => ({...s}));
                 const cell = playerBoard[row][col];
+                const isHit = !!cell.shipId;
+                const coordinates = `(${String.fromCharCode(65 + col)}${row + 1})`;
 
-                if (cell.shipId) {
+                if (isHit) {
                     newBoard[row][col].status = CellStatus.HIT;
-                    setMessage(`Computer hit at (${String.fromCharCode(65 + col)}${row + 1})!`);
                     setComputerActiveHits(prev => [...prev, {row, col}]);
                     
                     const hitShip = newPlayerShips.find(s => s.id === cell.shipId);
                     if (hitShip && isShipSunk(newBoard, hitShip)) {
                         hitShip.sunk = true;
-                        setMessage(`Computer sunk your ${hitShip.name}!`);
+                        setMessage(`Computer sunk your ${hitShip.name}! Firing again.`);
                         setSunkShipInfo({ player: 'PLAYER', positions: hitShip.positions });
                         setTimeout(() => setSunkShipInfo(null), 800);
                         
@@ -201,10 +205,12 @@ const App: React.FC = () => {
                             )
                         );
                         hitShip.positions.forEach(p => newBoard[p.row][p.col].status = CellStatus.SUNK);
+                    } else {
+                        setMessage(`Computer hit at ${coordinates}! Firing again.`);
                     }
                 } else {
                     newBoard[row][col].status = CellStatus.MISS;
-                    setMessage(`Computer missed at (${String.fromCharCode(65 + col)}${row + 1}).`);
+                    setMessage(`Computer missed at ${coordinates}. Your turn!`);
                 }
 
                 setPlayerBoard(newBoard);
@@ -212,11 +218,13 @@ const App: React.FC = () => {
                 
                 if (newPlayerShips.every(s => s.sunk)) {
                     handleGameOver('COMPUTER');
-                } else {
+                } else if (!isHit) {
+                    // A hit keeps the turn with the computer; only a miss passes it on.
                     setTurn('PLAYER');
-                    setMessage('Your turn!');
                 }
             }, 1000);
+
+            return () => clearTimeout(timer);
         }
     }, [turn, phase, winner, playerBoard, playerShips, computerActiveHits, handleGameOver]);
 
