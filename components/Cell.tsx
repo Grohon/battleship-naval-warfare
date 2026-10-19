@@ -15,7 +15,10 @@ interface CellProps {
 
 const Cell: React.FC<CellProps> = ({ state, row, col, isPlayerBoard, onClick, disabled, isPlacementPreview, isPlacementValid, isNewlySunk }) => {
   const getCellClasses = () => {
-    let baseClasses = 'w-8 h-8 md:w-10 md:h-10 border border-navy-700 transition-all duration-300';
+    // Fluid cells: the grid divides whatever width the board has, so the board
+    // scales down to fit small screens and is capped on large ones. All
+    // pixel-based overlays read the measured size instead of assuming one.
+    let baseClasses = 'w-full aspect-square border border-navy-700 transition-all duration-300';
 
     if (isNewlySunk) {
       return baseClasses + ' animate-sunkFlash';

@@ -28,9 +28,13 @@ interface BoardProps {
 const GAP_SIZE = 2; // Corresponds to gap-0.5 -> 0.125rem * 16px = 2px
 
 const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard, onCellClick, onCellDragOver, onCellDrop, onPlacedShipDragStart, onPlacedShipDragEnd, onPlacedShipTouchStart, onRotatePlacedShip, disabled, isTurn, draggedShip, isTouchDrag, sunkShipPositions, previewCells, isPlacementValid, onCellMeasure }) => {
+  // The board is fluid: it fills its column up to the size that gives 40px cells
+  // (10 * 40 + 9 * 2 gap + 16 padding + 4 border = 438px), and shrinks below that
+  // on narrow screens. Cells are sized with w-full + aspect-square, so the
+  // measured size below is the single source of truth for every pixel overlay.
   // The border is always present (transparent when idle) so the board does not
   // shift or resize while a ship is being dragged.
-  const boardClasses = `p-2 bg-navy-900/50 rounded-lg shadow-lg transition-all duration-500 border-2 ${
+  const boardClasses = `w-full p-2 bg-navy-900/50 rounded-lg shadow-lg transition-all duration-500 border-2 ${
     isPlayerBoard && draggedShip ? 'border-dashed border-cyan-light/50' : 'border-transparent'
   } ${isTurn ? 'ring-2 ring-cyan-light animate-pulse' : ''}`;
 
@@ -52,7 +56,9 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
       if (!first) return;
       const second = grid.children[1] as HTMLElement | undefined;
 
-      const cell = first.offsetWidth || Math.round(first.getBoundingClientRect().width);
+      // Fluid cells have fractional widths, so measure the rect instead of the
+      // rounded offsetWidth; the pitch is the exact distance between two cells.
+      const cell = first.getBoundingClientRect().width || first.offsetWidth;
       let pitch = cell + GAP_SIZE;
       if (second) {
         const dx = second.getBoundingClientRect().left - first.getBoundingClientRect().left;
@@ -114,7 +120,7 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
   };
 
   return (
-    <div className="flex flex-col items-center space-y-3">
+    <div className="flex flex-col items-center space-y-3 w-full max-w-[438px]">
       <h2 className="text-xl font-bold tracking-wider text-slate-light">{title}</h2>
       <div
         className={boardClasses}

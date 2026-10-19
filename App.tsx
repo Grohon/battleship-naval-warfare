@@ -492,7 +492,7 @@ const App: React.FC = () => {
     };
     
     return (
-        <div className="min-h-screen bg-gradient-to-b from-navy-900 to-navy-800 flex flex-col items-center p-4 md:p-8">
+        <div className="min-h-screen bg-gradient-to-b from-navy-900 to-navy-800 flex flex-col items-center p-2 sm:p-4 md:p-8">
             {isTouchDragging && draggedShip && ghostPosition && (
                 <DraggableShipGhost
                     ref={ghostRef}
@@ -521,7 +521,7 @@ const App: React.FC = () => {
             )}
 
             <header className="relative w-full text-center mb-6">
-                <h1 className="text-4xl md:text-5xl font-bold text-cyan-light tracking-widest">BATTLESHIP</h1>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-cyan-light tracking-widest">BATTLESHIP</h1>
                 <p className="text-slate-DEFAULT">Naval Warfare Edition</p>
                 <button
                   onClick={() => setIsStatsVisible(true)}
@@ -543,7 +543,7 @@ const App: React.FC = () => {
                 canStart={unplacedPlayerShips.length === 0}
             />
             
-            <div className="flex flex-col lg:flex-row gap-8 lg:gap-16 w-full max-w-7xl justify-center items-start">
+            <div className="flex flex-col lg:flex-row gap-8 lg:gap-16 w-full max-w-7xl justify-center items-center lg:items-start">
                 <Board 
                     title="Your Fleet" 
                     board={playerBoard}
@@ -584,6 +584,7 @@ const App: React.FC = () => {
                             <ShipPlacement 
                                 key={ship.id}
                                 ship={ship}
+                                cellSize={cellMetrics.cell}
                                 onDragStart={handleDragStart}
                                 onTouchStart={handleTouchStart}
                                 onRotate={handleRotateShip}
