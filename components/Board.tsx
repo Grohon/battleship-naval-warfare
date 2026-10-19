@@ -19,35 +19,62 @@ interface BoardProps {
   disabled: boolean;
   isTurn: boolean;
   draggedShip?: UnplacedShip | null;
+  isTouchDrag?: boolean;
   sunkShipPositions?: {row: number, col: number}[];
   previewCells?: {row: number, col: number}[];
   isPlacementValid?: boolean;
+  onCellMeasure?: (metrics: { cell: number; pitch: number }) => void;
 }
 
 const GAP_SIZE = 2; // Corresponds to gap-0.5 -> 0.125rem * 16px = 2px
 
-const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard, onCellClick, onCellDragOver, onDragLeave, onCellDrop, onPlacedShipDragStart, onPlacedShipDragEnd, onPlacedShipTouchStart, onRotatePlacedShip, disabled, isTurn, draggedShip, sunkShipPositions, previewCells, isPlacementValid }) => {
-  const boardClasses = `p-2 bg-navy-900/50 rounded-lg shadow-lg transition-all duration-500 ${isTurn ? 'ring-2 ring-cyan-light animate-pulse' : 'ring-0'} ${
-    isPlayerBoard && draggedShip ? 'border-2 border-dashed border-cyan-light/50' : ''
-  }`;
+const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard, onCellClick, onCellDragOver, onDragLeave, onCellDrop, onPlacedShipDragStart, onPlacedShipDragEnd, onPlacedShipTouchStart, onRotatePlacedShip, disabled, isTurn, draggedShip, isTouchDrag, sunkShipPositions, previewCells, isPlacementValid, onCellMeasure }) => {
+  // The border is always present (transparent when idle) so the board does not
+  // shift or resize while a ship is being dragged.
+  const boardClasses = `p-2 bg-navy-900/50 rounded-lg shadow-lg transition-all duration-500 border-2 ${
+    isPlayerBoard && draggedShip ? 'border-dashed border-cyan-light/50' : 'border-transparent'
+  } ${isTurn ? 'ring-2 ring-cyan-light animate-pulse' : ''}`;
 
   const [cellSize, setCellSize] = useState(40);
+  const [cellPitch, setCellPitch] = useState(40 + GAP_SIZE);
   const gridRef = useRef<HTMLDivElement>(null);
+  const onCellMeasureRef = useRef(onCellMeasure);
+  onCellMeasureRef.current = onCellMeasure;
 
+  // Measure the real cell size and the distance between two neighbouring cells
+  // (cell + gap). A ResizeObserver keeps this in sync with breakpoint changes
+  // and with late-applied styles (e.g. the Tailwind CDN loading after mount).
   useEffect(() => {
-    const updateCellSize = () => {
-      if (gridRef.current?.firstChild) {
-        const cellElement = gridRef.current.firstChild as HTMLElement;
-        setCellSize(cellElement.offsetWidth);
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    const measure = () => {
+      const first = grid.children[0] as HTMLElement | undefined;
+      if (!first) return;
+      const second = grid.children[1] as HTMLElement | undefined;
+
+      const cell = first.offsetWidth || Math.round(first.getBoundingClientRect().width);
+      let pitch = cell + GAP_SIZE;
+      if (second) {
+        const dx = second.getBoundingClientRect().left - first.getBoundingClientRect().left;
+        if (dx > 0) pitch = dx;
       }
+
+      setCellSize(prev => (prev === cell ? prev : cell));
+      setCellPitch(prev => (prev === pitch ? prev : pitch));
+      onCellMeasureRef.current?.({ cell, pitch });
     };
-    const timeoutId = setTimeout(updateCellSize, 50);
-    window.addEventListener('resize', updateCellSize);
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener('resize', updateCellSize);
-    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    return () => observer.disconnect();
   }, []);
+
+  const shipBox = (length: number, orientation: 'horizontal' | 'vertical') => ({
+    width: orientation === 'horizontal' ? (length - 1) * cellPitch + cellSize : cellSize,
+    height: orientation === 'vertical' ? (length - 1) * cellPitch + cellSize : cellSize,
+  });
 
   return (
     <div className="flex flex-col items-center space-y-3">
@@ -85,21 +112,33 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
               const isVisible = isPlayerBoard || ship.sunk;
               if (!isVisible) return null;
 
-              // Only player ships in placement phase are interactive
-              const isInteractive = isPlayerBoard && !disabled;
-              
+              // Only player ships in placement phase are interactive, and never
+              // while another ship is being dragged.
+              const isInteractive = isPlayerBoard && !disabled && !draggedShip;
+
+              const box = shipBox(ship.length, ship.orientation);
+
               return (
                 <div
                   key={ship.id}
                   draggable={isInteractive}
                   onDragStart={isInteractive ? (e) => onPlacedShipDragStart && onPlacedShipDragStart(e, ship) : undefined}
-                  onDragEnd={isInteractive ? onPlacedShipDragEnd : undefined}
+                  onDragEnd={isPlayerBoard && !disabled ? onPlacedShipDragEnd : undefined}
                   onTouchStart={isInteractive ? (e) => onPlacedShipTouchStart && onPlacedShipTouchStart(e, ship) : undefined}
+                  role={isInteractive ? 'button' : undefined}
+                  tabIndex={isInteractive ? 0 : undefined}
+                  aria-label={isInteractive ? `${ship.name}, placed. Drag to move, press Enter to rotate.` : undefined}
                   onClick={() => {
                     if (isInteractive && onRotatePlacedShip) {
                       onRotatePlacedShip(ship.id);
                     }
                   }}
+                  onKeyDown={isInteractive ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onRotatePlacedShip?.(ship.id);
+                    }
+                  } : undefined}
                   onContextMenu={(e) => {
                     if (isInteractive && onRotatePlacedShip) {
                       e.preventDefault();
@@ -108,10 +147,10 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
                   }}
                   className={`absolute ${isInteractive ? 'pointer-events-auto cursor-move' : ''}`}
                   style={{
-                    top: `${ship.positions[0].row * (cellSize + GAP_SIZE)}px`,
-                    left: `${ship.positions[0].col * (cellSize + GAP_SIZE)}px`,
-                    width: ship.orientation === 'horizontal' ? `${ship.length * (cellSize + GAP_SIZE) - GAP_SIZE}px` : `${cellSize}px`,
-                    height: ship.orientation === 'vertical' ? `${ship.length * (cellSize + GAP_SIZE) - GAP_SIZE}px` : `${cellSize}px`,
+                    top: `${ship.positions[0].row * cellPitch}px`,
+                    left: `${ship.positions[0].col * cellPitch}px`,
+                    width: `${box.width}px`,
+                    height: `${box.height}px`,
                   }}
                 >
                   <ShipComponent 
@@ -124,6 +163,22 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
               )
             })}
           </div>
+
+          {/* Snapped drag ghost: rendered exactly over the preview cells so the
+              visual always matches where the ship will be dropped. Mouse only —
+              on touch the finger-following ghost already shows the grab point. */}
+          {isPlayerBoard && !isTouchDrag && draggedShip && previewCells && previewCells.length > 0 && (
+            <div
+              className={`absolute pointer-events-none ${isPlacementValid ? 'opacity-90' : 'opacity-60'}`}
+              style={{
+                top: `${previewCells[0].row * cellPitch}px`,
+                left: `${previewCells[0].col * cellPitch}px`,
+                ...shipBox(draggedShip.length, draggedShip.orientation),
+              }}
+            >
+              <ShipComponent ship={draggedShip} orientation={draggedShip.orientation} isPlaced={false} />
+            </div>
+          )}
         </div>
       </div>
     </div>

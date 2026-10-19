@@ -29,10 +29,19 @@ const ShipPlacement: React.FC<ShipPlacementProps> = ({ ship, onDragStart, onTouc
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
+      aria-label={`${ship.name}, length ${ship.length}. Drag onto your fleet, press Enter to rotate.`}
       onDragStart={(e) => onDragStart(e, ship)}
       onTouchStart={(e) => onTouchStart(e, ship)}
       onDragEnd={onDragEnd}
       onClick={() => onRotate(ship.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onRotate(ship.id);
+        }
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         onRotate(ship.id);

@@ -18,7 +18,8 @@ A modern and elegant 2D Battleship game where you play against a computer AI. Bu
     -   You'll see your fleet of unplaced ships below the game boards.
     -   Drag each ship and drop it onto your grid ("Your Fleet").
     -   To rotate a ship, simply click or right-click on it (either in the unplaced ships area or after it has been placed on the board).
-    -   You can also move ships that are already on the board by dragging them to a new valid location.
+    -   You can also move ships that are already on the board by dragging them to a new valid location. Grab a ship anywhere — the floating ship and the highlighted cells always show exactly where it will land.
+    -   Dropping a ship onto an invalid spot leaves it where it was, so you can never lose a placement by accident.
 
 2.  **Battle Phase:**
     -   Once all ships are placed, the "Start Game" button will become active. Click it to begin the battle.

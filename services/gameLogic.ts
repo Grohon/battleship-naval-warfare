@@ -18,6 +18,7 @@ export const createEmptyBoard = (): BoardState => {
  * Checks if a ship placement is valid on the board.
  */
 export const canPlaceShip = (board: BoardState, ship: Ship, row: number, col: number, orientation: Orientation): boolean => {
+  if (row < 0 || col < 0) return false;
   if (orientation === 'horizontal') {
     if (col + ship.length > BOARD_SIZE) return false;
     for (let i = 0; i < ship.length; i++) {
@@ -50,6 +51,16 @@ export const placeShipOnBoard = (board: BoardState, ship: Ship, row: number, col
     }
   }
   return { newBoard, positions };
+};
+
+/**
+ * Returns a copy of the board with all cells belonging to the given ship cleared.
+ * Used to compute placement validity while a ship is being dragged to a new location.
+ */
+export const getBoardWithoutShip = (board: BoardState, shipId: string): BoardState => {
+  return board.map(row => row.map(cell =>
+    cell.shipId === shipId ? { status: CellStatus.EMPTY, shipId: null } : cell
+  ));
 };
 
 /**

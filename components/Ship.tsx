@@ -14,6 +14,11 @@ const ShipComponent: React.FC<ShipComponentProps> = ({ ship, orientation, style,
     const isHorizontal = orientation === 'horizontal';
     const scale = 10;
 
+    // Fill the parent box exactly. When a style is supplied (tray tiles) it wins;
+    // otherwise the ship stretches to whatever box the parent (board overlay,
+    // ghost) provides, so it lines up with the grid cells.
+    const wrapperStyle: React.CSSProperties = style ?? { width: '100%', height: '100%' };
+
     // Define viewBoxes for both orientations.
     const horizontalViewBox = `0 0 ${ship.length * scale} ${scale}`;
     const verticalViewBox = `0 0 ${scale} ${ship.length * scale}`;
@@ -23,7 +28,7 @@ const ShipComponent: React.FC<ShipComponentProps> = ({ ship, orientation, style,
     const rotationTransform = 'rotate(90 5 5)';
 
     return (
-        <div className={`flex items-center justify-center transition-opacity duration-500 ${isSunk ? 'opacity-60' : ''}`} style={style}>
+        <div className={`flex items-center justify-center transition-opacity duration-500 ${isSunk ? 'opacity-60' : ''}`} style={wrapperStyle}>
             <svg
                 width="100%"
                 height="100%"
