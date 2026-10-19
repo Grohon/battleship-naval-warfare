@@ -160,6 +160,9 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
               const isInteractive = isPlayerBoard && !disabled && !isTouchDrag;
 
               const box = shipBox(ship.length, ship.orientation);
+              // The ship stays in place until a valid drop, so it is dimmed
+              // while it is the one being dragged to show it is in flight.
+              const isBeingDragged = draggedShip?.id === ship.id;
 
               return (
                 <div
@@ -188,7 +191,7 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
                       onRotatePlacedShip(ship.id);
                     }
                   }}
-                  className={`absolute ${isInteractive ? 'pointer-events-auto cursor-move' : ''}`}
+                  className={`absolute transition-opacity duration-200 ${isInteractive ? 'pointer-events-auto cursor-move' : ''} ${isBeingDragged ? 'opacity-30' : 'opacity-100'}`}
                   style={{
                     top: `${ship.positions[0].row * cellPitch}px`,
                     left: `${ship.positions[0].col * cellPitch}px`,
