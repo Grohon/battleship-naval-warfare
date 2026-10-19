@@ -7,15 +7,13 @@ interface CellProps {
   col: number;
   isPlayerBoard: boolean;
   onClick: () => void;
-  onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void;
-  onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
   disabled: boolean;
   isPlacementPreview?: boolean;
   isPlacementValid?: boolean;
   isNewlySunk?: boolean;
 }
 
-const Cell: React.FC<CellProps> = ({ state, row, col, isPlayerBoard, onClick, onDragOver, onDrop, disabled, isPlacementPreview, isPlacementValid, isNewlySunk }) => {
+const Cell: React.FC<CellProps> = ({ state, row, col, isPlayerBoard, onClick, disabled, isPlacementPreview, isPlacementValid, isNewlySunk }) => {
   const getCellClasses = () => {
     let baseClasses = 'w-8 h-8 md:w-10 md:h-10 border border-navy-700 transition-all duration-300';
 
@@ -49,7 +47,7 @@ const Cell: React.FC<CellProps> = ({ state, row, col, isPlayerBoard, onClick, on
 
     if (!isPlayerBoard && !disabled && state.status !== CellStatus.HIT && state.status !== CellStatus.MISS && state.status !== CellStatus.SUNK) {
       baseClasses += ' cursor-pointer hover:bg-cyan-light/20';
-    } else if (isPlayerBoard && onDrop) {
+    } else if (isPlayerBoard && !disabled) {
         baseClasses += ' hover:bg-navy-700/80'; // For placement hover effects
     }
     
@@ -60,10 +58,9 @@ const Cell: React.FC<CellProps> = ({ state, row, col, isPlayerBoard, onClick, on
     <div
       className={getCellClasses()}
       onClick={!disabled ? onClick : undefined}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
       data-row={row}
       data-col={col}
+      data-board={isPlayerBoard ? 'player' : 'enemy'}
     />
   );
 };

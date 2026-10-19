@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { SHIPS } from './constants';
+import { SHIPS, BOARD_SIZE } from './constants';
 import { BoardState, CellStatus, GamePhase, PlacedShip, Player, UnplacedShip, GameStatsData } from './types';
 import { createEmptyBoard, placeAllComputerShips, canPlaceShip, placeShipOnBoard, getComputerMove, isShipSunk, getBoardWithoutShip } from './services/gameLogic';
 import { loadStats, saveStats, resetStats } from './services/statsService';
@@ -69,7 +69,8 @@ const App: React.FC = () => {
     const [gameStartTime, setGameStartTime] = useState<number | null>(null);
 
     const clearPreview = useCallback(() => {
-        setPreviewCells([]);
+        // Returning the previous array keeps a no-op clear out of the render path.
+        setPreviewCells(prev => (prev.length === 0 ? prev : []));
     }, []);
 
     const handleGameOver = useCallback((gameWinner: Player) => {
@@ -244,11 +245,19 @@ const App: React.FC = () => {
             positions.push(orientation === 'horizontal' ? { row: anchorRow, col: anchorCol + i } : { row: anchorRow + i, col: anchorCol });
         }
 
+        // dragover keeps firing while the anchor cell has not changed; reusing the
+        // previous state keeps those redundant events out of the render path.
+        setPreviewCells(prev =>
+            prev.length === positions.length && prev.every((p, i) => p.row === positions[i].row && p.col === positions[i].col)
+                ? prev
+                : positions
+        );
+
         // Validity is checked against the board with the dragged ship itself removed,
         // so a placed ship can be dropped back onto its own cells.
         const baseBoard = getBoardWithoutShip(playerBoard, draggedShip.id);
-        setPreviewCells(positions);
-        setIsPlacementValid(canPlaceShip(baseBoard, draggedShip, anchorRow, anchorCol, orientation));
+        const valid = canPlaceShip(baseBoard, draggedShip, anchorRow, anchorCol, orientation);
+        setIsPlacementValid(prev => (prev === valid ? prev : valid));
     }, [draggedShip, dragGrabOffset, playerBoard]);
 
     /** Places the dragged ship at the given pointer cell (if valid) and ends the drag. */
@@ -339,9 +348,10 @@ const App: React.FC = () => {
         const elementUnder = document.elementFromPoint(touch.clientX, touch.clientY);
         if (ghostRef.current) ghostRef.current.style.display = 'block';
 
+        // Only cells of the player's own board are valid placement targets.
         const rowAttr = elementUnder?.getAttribute('data-row');
         const colAttr = elementUnder?.getAttribute('data-col');
-        if (rowAttr != null && colAttr != null) {
+        if (elementUnder?.getAttribute('data-board') === 'player' && rowAttr != null && colAttr != null) {
             handleUpdatePreview(parseInt(rowAttr, 10), parseInt(colAttr, 10));
         } else {
             clearPreview();
@@ -356,9 +366,10 @@ const App: React.FC = () => {
         const elementUnder = document.elementFromPoint(touch.clientX, touch.clientY);
         if (ghostRef.current) ghostRef.current.style.display = 'block';
 
+        // Only cells of the player's own board are valid placement targets.
         const rowAttr = elementUnder?.getAttribute('data-row');
         const colAttr = elementUnder?.getAttribute('data-col');
-        if (rowAttr != null && colAttr != null) {
+        if (elementUnder?.getAttribute('data-board') === 'player' && rowAttr != null && colAttr != null) {
             tryPlaceShip(parseInt(rowAttr, 10), parseInt(colAttr, 10));
         } else {
             endDrag();
@@ -379,23 +390,49 @@ const App: React.FC = () => {
         };
     }, [isTouchDragging, handleTouchMove, handleTouchEnd]);
 
-    // Track the raw pointer while a mouse drag is active so the free-follow
-    // ghost can be shown whenever the cursor is not over a board cell.
+    // Track the pointer while a mouse drag is active so the free-follow ghost can
+    // be shown whenever the cursor is not over the player's board. Leaving the
+    // board is decided here, from the pointer position (dragover fires window-wide,
+    // unlike dragleave, which is unreliable to detect board exits with).
     // A window-level dragend acts as a safety net: cancelled drags and drops
     // outside the board always clear the drag state.
     useEffect(() => {
         if (!draggedShip || isTouchDragging) return;
+        let frame: number | null = null;
+        let pending: { x: number; y: number } | null = null;
+
         const onDragOver = (e: DragEvent) => {
-            setDragPointer({ x: e.clientX, y: e.clientY });
+            const elementUnder = document.elementFromPoint(e.clientX, e.clientY);
+            const overPlayerBoard = !!elementUnder?.closest('[data-board-container="player"]');
+            if (overPlayerBoard) {
+                // Board.tsx already refreshed the preview under the cursor; the
+                // finger-following ghost is hidden while it is showing.
+                return;
+            }
+
+            clearPreview();
+
+            // Pointer updates are throttled to one per frame; off the board the
+            // free-follow ghost is the only thing that moves.
+            pending = { x: e.clientX, y: e.clientY };
+            if (frame !== null) return;
+            frame = requestAnimationFrame(() => {
+                frame = null;
+                const next = pending;
+                if (next) {
+                    setDragPointer(prev => (prev && Math.abs(prev.x - next.x) < 2 && Math.abs(prev.y - next.y) < 2) ? prev : next);
+                }
+            });
         };
         const onDragEnd = () => endDrag();
         window.addEventListener('dragover', onDragOver);
         window.addEventListener('dragend', onDragEnd);
         return () => {
+            if (frame !== null) cancelAnimationFrame(frame);
             window.removeEventListener('dragover', onDragOver);
             window.removeEventListener('dragend', onDragEnd);
         };
-    }, [draggedShip, isTouchDragging, endDrag]);
+    }, [draggedShip, isTouchDragging, endDrag, clearPreview]);
 
 
     const handleRotateShip = (shipId: string) => {
@@ -413,20 +450,32 @@ const App: React.FC = () => {
         if (!shipToRotate) return;
 
         const newOrientation = shipToRotate.orientation === 'horizontal' ? 'vertical' : 'horizontal';
-        const anchorPosition = shipToRotate.positions[0];
+        const anchor = shipToRotate.positions[0];
+        const baseBoard = getBoardWithoutShip(playerBoard, shipId);
 
-        const tempBoard = getBoardWithoutShip(playerBoard, shipId);
-
-        if (canPlaceShip(tempBoard, shipToRotate, anchorPosition.row, anchorPosition.col, newOrientation)) {
-            const { newBoard, positions } = placeShipOnBoard(tempBoard, shipToRotate, anchorPosition.row, anchorPosition.col, newOrientation);
-            
-            setPlayerBoard(newBoard);
-            setPlayerShips(playerShips.map(ship => 
-                ship.id === shipId 
-                    ? { ...ship, orientation: newOrientation, positions } 
-                    : ship
-            ));
+        // Try rotating in place first; if the rotated ship does not fit there,
+        // expand ring by ring around the anchor and take the nearest spot that
+        // does, so the rotation adjusts the ship's position automatically.
+        const candidates: { row: number; col: number }[] = [{ row: anchor.row, col: anchor.col }];
+        for (let distance = 1; distance < BOARD_SIZE; distance++) {
+            for (let dr = -distance; dr <= distance; dr++) {
+                for (let dc = -distance; dc <= distance; dc++) {
+                    if (Math.max(Math.abs(dr), Math.abs(dc)) !== distance) continue;
+                    candidates.push({ row: anchor.row + dr, col: anchor.col + dc });
+                }
+            }
         }
+
+        const target = candidates.find(c => canPlaceShip(baseBoard, shipToRotate, c.row, c.col, newOrientation));
+        if (!target) return;
+
+        const { newBoard, positions } = placeShipOnBoard(baseBoard, shipToRotate, target.row, target.col, newOrientation);
+        setPlayerBoard(newBoard);
+        setPlayerShips(prev => prev.map(ship =>
+            ship.id === shipId
+                ? { ...ship, orientation: newOrientation, positions }
+                : ship
+        ));
     };
 
     const handleResetStats = () => {
@@ -495,7 +544,6 @@ const App: React.FC = () => {
                     disabled={phase !== GamePhase.PLACEMENT}
                     isTurn={turn === 'COMPUTER' && phase === GamePhase.BATTLE}
                     onCellDragOver={(e, row, col) => { e.preventDefault(); handleUpdatePreview(row, col); }}
-                    onDragLeave={clearPreview}
                     onCellDrop={(e, row, col) => handleDrop(e, row, col)}
                     onPlacedShipDragStart={handlePlacedShipDragStart}
                     onPlacedShipDragEnd={handleDragEnd}

@@ -10,7 +10,6 @@ interface BoardProps {
   isPlayerBoard: boolean;
   onCellClick?: (row: number, col: number) => void;
   onCellDragOver?: (e: React.DragEvent<HTMLDivElement>, row: number, col: number) => void;
-  onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void;
   onCellDrop?: (e: React.DragEvent<HTMLDivElement>, row: number, col: number) => void;
   onPlacedShipDragStart?: (e: React.DragEvent<HTMLDivElement>, ship: PlacedShip) => void;
   onPlacedShipDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -28,7 +27,7 @@ interface BoardProps {
 
 const GAP_SIZE = 2; // Corresponds to gap-0.5 -> 0.125rem * 16px = 2px
 
-const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard, onCellClick, onCellDragOver, onDragLeave, onCellDrop, onPlacedShipDragStart, onPlacedShipDragEnd, onPlacedShipTouchStart, onRotatePlacedShip, disabled, isTurn, draggedShip, isTouchDrag, sunkShipPositions, previewCells, isPlacementValid, onCellMeasure }) => {
+const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard, onCellClick, onCellDragOver, onCellDrop, onPlacedShipDragStart, onPlacedShipDragEnd, onPlacedShipTouchStart, onRotatePlacedShip, disabled, isTurn, draggedShip, isTouchDrag, sunkShipPositions, previewCells, isPlacementValid, onCellMeasure }) => {
   // The border is always present (transparent when idle) so the board does not
   // shift or resize while a ship is being dragged.
   const boardClasses = `p-2 bg-navy-900/50 rounded-lg shadow-lg transition-all duration-500 border-2 ${
@@ -76,11 +75,54 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
     height: orientation === 'vertical' ? (length - 1) * cellPitch + cellSize : cellSize,
   });
 
+  // Drag/drop is resolved geometrically from the pointer position. Ships stay
+  // interactive at all times (their overlays are pointer-events-auto even while
+  // dragging), so relying on which element happens to receive the event would
+  // miss drags that pass over a ship. Deriving the cell from coordinates keeps
+  // hover, preview and drop consistent no matter what is under the cursor.
+  const cellAtPoint = (clientX: number, clientY: number) => {
+    const grid = gridRef.current;
+    if (!grid) return null;
+    const rect = grid.getBoundingClientRect();
+    // A little slack around the grid keeps drops in the board padding forgiving.
+    if (
+      clientX < rect.left - cellPitch / 2 || clientX > rect.right + cellPitch / 2 ||
+      clientY < rect.top - cellPitch / 2 || clientY > rect.bottom + cellPitch / 2
+    ) {
+      return null;
+    }
+    const rows = board.length;
+    const cols = board[0]?.length ?? 0;
+    if (!rows || !cols) return null;
+    const row = Math.max(0, Math.min(rows - 1, Math.floor((clientY - rect.top) / cellPitch)));
+    const col = Math.max(0, Math.min(cols - 1, Math.floor((clientX - rect.left) / cellPitch)));
+    return { row, col };
+  };
+
+  const handleBoardDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isPlayerBoard || disabled || !draggedShip || !onCellDragOver) return;
+    e.preventDefault();
+    const cell = cellAtPoint(e.clientX, e.clientY);
+    if (cell) onCellDragOver(e, cell.row, cell.col);
+  };
+
+  const handleBoardDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isPlayerBoard || disabled || !draggedShip || !onCellDrop) return;
+    e.preventDefault();
+    const cell = cellAtPoint(e.clientX, e.clientY);
+    if (cell) onCellDrop(e, cell.row, cell.col);
+  };
+
   return (
     <div className="flex flex-col items-center space-y-3">
       <h2 className="text-xl font-bold tracking-wider text-slate-light">{title}</h2>
-      <div className={boardClasses}>
-        <div className="relative" onDragLeave={isPlayerBoard ? onDragLeave : undefined}>
+      <div
+        className={boardClasses}
+        data-board-container={isPlayerBoard ? 'player' : 'enemy'}
+        onDragOver={isPlayerBoard ? handleBoardDragOver : undefined}
+        onDrop={isPlayerBoard ? handleBoardDrop : undefined}
+      >
+        <div className="relative">
           <div ref={gridRef} className="grid grid-cols-10 gap-0.5 bg-navy-700">
             {board.map((row, rowIndex) =>
               row.map((cell, colIndex) => {
@@ -95,8 +137,6 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
                     col={colIndex}
                     isPlayerBoard={isPlayerBoard}
                     onClick={() => onCellClick && onCellClick(rowIndex, colIndex)}
-                    onDragOver={(e) => isPlayerBoard && onCellDragOver && onCellDragOver(e, rowIndex, colIndex)}
-                    onDrop={(e) => onCellDrop && onCellDrop(e, rowIndex, colIndex)}
                     disabled={disabled}
                     isPlacementPreview={isPreviewing}
                     isPlacementValid={isPlacementValid ?? false}
@@ -112,9 +152,12 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
               const isVisible = isPlayerBoard || ship.sunk;
               if (!isVisible) return null;
 
-              // Only player ships in placement phase are interactive, and never
-              // while another ship is being dragged.
-              const isInteractive = isPlayerBoard && !disabled && !draggedShip;
+              // Player ships stay interactive throughout a placement drag.
+              // Flipping draggable/pointer-events on the drag source mid-drag
+              // cancels the browser's native drag session, so interactivity only
+              // changes when the phase or the input mode changes. (On touch there
+              // is no native session, and ships must not block elementFromPoint.)
+              const isInteractive = isPlayerBoard && !disabled && !isTouchDrag;
 
               const box = shipBox(ship.length, ship.orientation);
 
