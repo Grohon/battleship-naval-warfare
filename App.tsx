@@ -521,7 +521,7 @@ const App: React.FC = () => {
             )}
 
             <header className="relative w-full text-center mb-6">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-cyan-light tracking-widest">BATTLESHIP</h1>
+                <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-cyan-light tracking-widest">BATTLESHIP</h1>
                 <p className="text-slate-DEFAULT">Naval Warfare Edition</p>
                 <button
                   onClick={() => setIsStatsVisible(true)}
