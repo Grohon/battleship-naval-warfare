@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BoardState, PlacedShip, UnplacedShip } from '../types';
+import { BOARD_COLUMNS } from '../constants';
 import Cell from './Cell';
 import ShipComponent from './Ship';
 
@@ -28,10 +29,10 @@ interface BoardProps {
 const GAP_SIZE = 2; // Corresponds to gap-0.5 -> 0.125rem * 16px = 2px
 
 const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard, onCellClick, onCellDragOver, onCellDrop, onPlacedShipDragStart, onPlacedShipDragEnd, onPlacedShipTouchStart, onRotatePlacedShip, disabled, isTurn, draggedShip, isTouchDrag, sunkShipPositions, previewCells, isPlacementValid, onCellMeasure }) => {
-  // The board is fluid: it fills its column up to the size that gives 40px cells
-  // (10 * 40 + 9 * 2 gap + 16 padding + 4 border = 438px), and shrinks below that
-  // on narrow screens. Cells are sized with w-full + aspect-square, so the
-  // measured size below is the single source of truth for every pixel overlay.
+  // The board is fluid: the grid fills its column up to the size that gives 40px
+  // cells and shrinks below that on narrow screens. Cells are sized with w-full +
+  // aspect-square, so the measured size below is the single source of truth for
+  // every pixel overlay. 462px = 418 grid + 16 padding + 4 border + 24 label strip.
   // The border is always present (transparent when idle) so the board does not
   // shift or resize while a ship is being dragged.
   const boardClasses = `w-full p-2 bg-navy-900/50 rounded-lg shadow-lg transition-all duration-500 border-2 ${
@@ -120,7 +121,7 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
   };
 
   return (
-    <div className="flex flex-col items-center space-y-3 w-full max-w-[438px]">
+    <div className="flex flex-col items-center space-y-3 w-full max-w-[462px]">
       <h2 className="text-xl font-bold tracking-wider text-slate-light">{title}</h2>
       <div
         className={boardClasses}
@@ -128,8 +129,34 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
         onDragOver={isPlayerBoard ? handleBoardDragOver : undefined}
         onDrop={isPlayerBoard ? handleBoardDrop : undefined}
       >
-        <div className="relative">
-          <div ref={gridRef} className="grid grid-cols-10 gap-0.5 bg-navy-700">
+        <div className="flex items-stretch">
+          {/* Row numbers. The spacer matches the column-letter row height and the
+              labels split the rest, so every number lines up with its grid row at
+              any cell size. Column letters work the same way, splitting the width. */}
+          <div className="flex flex-col gap-0.5 w-4 sm:w-5 mr-1" aria-hidden="true">
+            <div className="h-4 sm:h-5 flex-none" />
+            {board.map((_, row) => (
+              <div
+                key={row}
+                className="flex-1 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-slate-DEFAULT"
+              >
+                {row + 1}
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex gap-0.5 h-4 sm:h-5 mb-0.5" aria-hidden="true">
+              {board[0]?.map((_, col) => (
+                <div
+                  key={col}
+                  className="flex-1 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-slate-DEFAULT"
+                >
+                  {BOARD_COLUMNS[col]}
+                </div>
+              ))}
+            </div>
+            <div className="relative">
+              <div ref={gridRef} className="grid grid-cols-10 gap-0.5 bg-navy-700">
             {board.map((row, rowIndex) =>
               row.map((cell, colIndex) => {
                 const isPreviewing = previewCells?.some(p => p.row === rowIndex && p.col === colIndex);
@@ -231,6 +258,8 @@ const Board: React.FC<BoardProps> = ({ title, board, placedShips, isPlayerBoard,
               <ShipComponent ship={draggedShip} orientation={draggedShip.orientation} isPlaced={false} />
             </div>
           )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

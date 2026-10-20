@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { SHIPS, BOARD_SIZE } from './constants';
+import { SHIPS, BOARD_SIZE, columnLabel } from './constants';
 import { BoardState, CellStatus, GamePhase, PlacedShip, Player, UnplacedShip, GameStatsData } from './types';
 import { createEmptyBoard, placeAllComputerShips, canPlaceShip, placeShipOnBoard, getComputerMove, isShipSunk, getBoardWithoutShip } from './services/gameLogic';
 import { loadStats, saveStats, resetStats } from './services/statsService';
@@ -186,7 +186,7 @@ const App: React.FC = () => {
                 let newPlayerShips = playerShips.map(s => ({...s}));
                 const cell = playerBoard[row][col];
                 const isHit = !!cell.shipId;
-                const coordinates = `(${String.fromCharCode(65 + col)}${row + 1})`;
+                const coordinates = `(${columnLabel(col)}${row + 1})`;
 
                 if (isHit) {
                     newBoard[row][col].status = CellStatus.HIT;
