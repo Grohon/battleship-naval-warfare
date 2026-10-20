@@ -564,16 +564,21 @@ const App: React.FC = () => {
                     onCellMeasure={setCellMetrics}
                     isTouchDrag={isTouchDragging}
                 />
-                <Board 
-                    title="Enemy Waters" 
-                    board={computerBoard}
-                    placedShips={computerShips}
-                    isPlayerBoard={false} 
-                    onCellClick={handlePlayerAttack} 
-                    disabled={turn !== 'PLAYER' || phase !== GamePhase.BATTLE}
-                    isTurn={turn === 'PLAYER' && phase === GamePhase.BATTLE}
-                    sunkShipPositions={sunkShipInfo?.player === 'COMPUTER' ? sunkShipInfo.positions : undefined}
-                />
+                {/* On phones and tablets the boards stack, so during placement the enemy
+                    grid would only push the ship tray below the fold. Hide it there until
+                    the battle starts; desktop keeps both boards visible. */}
+                <div className={`w-full max-w-[462px] ${phase === GamePhase.PLACEMENT ? 'hidden lg:block' : ''}`}>
+                    <Board 
+                        title="Enemy Waters" 
+                        board={computerBoard}
+                        placedShips={computerShips}
+                        isPlayerBoard={false} 
+                        onCellClick={handlePlayerAttack} 
+                        disabled={turn !== 'PLAYER' || phase !== GamePhase.BATTLE}
+                        isTurn={turn === 'PLAYER' && phase === GamePhase.BATTLE}
+                        sunkShipPositions={sunkShipInfo?.player === 'COMPUTER' ? sunkShipInfo.positions : undefined}
+                    />
+                </div>
             </div>
 
             {phase === GamePhase.PLACEMENT && (
